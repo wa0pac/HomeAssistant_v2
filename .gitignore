@@ -16,3 +16,4 @@
 # Other files to ignore
 /.ha_run.lock
 /home-assistant.log.fault
+/.HA_VERSION
