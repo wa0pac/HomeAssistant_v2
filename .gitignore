@@ -1,0 +1,18 @@
+#whitelist files and folders
+!*.yaml
+!.gitignore
+!*.md
+
+# ignore folders
+/.storage/
+/.cloud/
+/.google.token/
+
+# Ensure these YAML files are ignored
+/secrets.yaml
+/ip_bans.yaml
+/known_devices.yaml
+
+# Other files to ignore
+/.ha_run.lock
+/home-assistant.log.fault
