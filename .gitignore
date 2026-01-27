@@ -2,19 +2,46 @@
 !*.yaml
 !.gitignore
 !*.md
+!esphome/.gitignore
 
-# ignore folders
-/.storage/
-/.cloud/
-/.google.token/
-/www/community
+#Generic ignores
+*.log
+*.log.*
+*.db
+*.db-shm
+*.db-wal
+*.gz
+*.py
+._*
+__pycache__
+*.pyc 
 
-# Ensure these YAML files are ignored
-/secrets.yaml
-/ip_bans.yaml
-/known_devices.yaml
+#Ignore folders
+.storage
+.cloud
+deps
+custom_components
+tts
 
-# Other files to ignore
-/.ha_run.lock
-/home-assistant.log.fault
-/.HA_VERSION
+#ignore specific files
+ip_bans.yaml
+secrets.yaml
+known_devices.yaml
+.ha_run.lock
+.HA_VERSION
+
+#ESPHome ignores
+esphome/secrets.yaml
+esphome/.*/
+esphome/**/.pioenvs/
+esphome/**/.piolibdeps/
+esphome/**/lib/
+esphome/**/src/
+esphome/**/platformio.ini
+
+#node-red ignores - ignore everything for now
+node-red/
+
+# www ignores
+www/tmp/
+www/community
