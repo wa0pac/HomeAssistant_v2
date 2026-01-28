@@ -1,0 +1,230 @@
+# This code is based on code from Mikhail Diatchenko https://gist.github.com/muxa
+# Original source: https://gist.github.com/muxa/9d0b1be8ea7c3daed5a0d4f0db058e4f
+#
+# The code was modified to be flashed to a Shelly 2.5
+
+substitutions:
+  room: Garage
+  device_name: Garage Switch
+  
+<<: !include .base.yaml
+
+esphome:
+  name: garage_switch
+  includes:
+    - garage-switch.h
+esp8266:
+  board: esp01_1m
+
+
+i2c:
+  sda: GPIO12
+  scl: GPIO14
+    
+
+binary_sensor:
+  # required to be set to not overheat the Shelly 2.5
+  - platform: gpio
+    pin: GPIO16
+    name: "ade7953 IRQ pin"
+    internal: true
+  - platform: gpio
+    pin:
+      number: GPIO5
+      inverted: true
+    id: open_endstop
+    name: Garage Door Sensor Open
+    on_press:
+      - script.execute: process_door_opened
+    on_release:
+      - script.execute: process_door_closing
+  - platform: gpio
+    pin:
+      number: GPIO13
+      inverted: true
+    id: closed_endstop
+    name: Garage Door Sensor Closed
+    on_press:
+      - script.execute: process_door_closed
+    on_release:
+      - script.execute: process_door_opening
+
+
+
+  - platform: status
+    id: status_sensor
+    internal: true
+    name: "${device_name} API Status"
+    on_press: # connected
+      - logger.log: "CONNECTED"
+      - delay: 1s
+      - lambda: |-
+          if (id(closed_endstop).state) {
+            // closed
+            ESP_LOGD("SM", "Garage door is closed according to endstops");
+            set_cover_sm_state(STATE_CLOSED);
+          } else if (id(open_endstop).state) {
+            // open
+            ESP_LOGD("SM", "Garage door is open according to endstops");
+            set_cover_sm_state(STATE_OPEN);
+          } else {
+            ESP_LOGD("SM", "Garage door is unknown according to endstops");
+            set_cover_sm_state(STATE_UNKNOWN);
+          }
+    on_release: # disconnected
+      - logger.log: "DISCONNECTED"
+      - lambda: |-
+          id(begin_open_timeout).stop();
+          id(begin_close_timeout).stop();
+          id(current_state) = STATE_UNKNOWN; 
+
+  - platform: template
+    name: "Garage Door Obstruction"
+    device_class: problem # on means problem detected, off means no problem (OK)
+    lambda: |-
+      return is_problem(id(current_state));
+    filters:
+      delayed_on: 2s
+
+
+switch:
+  - platform: gpio
+    name: "Garage Door Switch"
+    pin: GPIO4
+    id: garage_opener_relay
+    icon: "mdi:garage"
+    restore_mode: RESTORE_DEFAULT_OFF
+    on_turn_on:
+#      - script.execute: process_press
+      - delay: 200ms
+      - switch.turn_off: garage_opener_relay
+
+globals:
+  - id: current_state
+    type: short
+    restore_value: no
+    initial_value: '1'
+
+script:
+  - id: process_press
+    then:
+      - lambda: |-
+          id(begin_open_timeout).stop();
+          id(begin_close_timeout).stop();
+
+          switch (id(current_state)) {
+            case STATE_CLOSED:
+              set_cover_sm_state(STATE_OPENING);
+              id(begin_open_timeout).execute();
+              break;
+            case STATE_OPENING:
+              set_cover_sm_state(STATE_OPENING_INTERRUPTED);
+              break;
+            case STATE_OPEN:
+              set_cover_sm_state(STATE_CLOSING);
+              id(begin_close_timeout).execute();
+              break;
+            case STATE_OPENING_INTERRUPTED:
+              set_cover_sm_state(STATE_CLOSING);
+              id(begin_close_timeout).execute();
+              break;
+            case STATE_CLOSING:
+              set_cover_sm_state(STATE_CLOSING_INTERRUPTED);
+              break;
+            case STATE_CLOSING_INTERRUPTED:
+              set_cover_sm_state(STATE_OPENING);
+              id(begin_open_timeout).execute();
+              break;
+            default:
+              ESP_LOGW("SM", "Invalid state for press: %d", id(current_state));
+              break;
+          }
+
+  - id: process_timeout
+    then:
+      - lambda: |-
+          switch (id(current_state)) {
+            case STATE_OPENING:
+              set_cover_sm_state(STATE_OPEN);
+              break;
+            case STATE_CLOSING:
+              ESP_LOGW("SM", "Garage failed to closed in time.");
+              set_cover_sm_state(STATE_CLOSING_INTERRUPTED);
+              break;
+            default:
+              ESP_LOGW("SM", "Invalid state for timeout: %d", id(current_state));
+              break;
+          }
+
+  # 
+  - id: process_door_opening
+    then:
+      - lambda: |-
+          if (id(current_state) == STATE_CLOSED) {
+            ESP_LOGD("SM", "Garage door is being opened by a remote");
+            set_cover_sm_state(STATE_OPENING);
+            id(begin_open_timeout).execute();
+          }
+
+  # Called when endstop_open sensor goes true
+  - id: process_door_opened
+    then:
+      - logger.log: "Garage door is Opened as detected by endstop"
+      - lambda: |-
+          id(begin_open_timeout).stop();
+          id(begin_close_timeout).stop();
+          set_cover_sm_state(STATE_OPEN);
+
+  # Called when endstop_closed sensor goes true
+  - id: process_door_closed
+    then:
+      - logger.log: "Garage door is closed as detected by endstop"
+      - lambda: |-
+          id(begin_open_timeout).stop();
+          id(begin_close_timeout).stop();
+          set_cover_sm_state(STATE_CLOSED);
+
+  # 
+  - id: process_door_closing
+    then:
+      - lambda: |-
+          if (id(current_state) == STATE_OPEN) {
+              ESP_LOGD("SM", "Garage door is being closed by a remote");
+              set_cover_sm_state(STATE_CLOSING);
+              id(begin_close_timeout).execute();
+          }
+
+
+  - id: begin_open_timeout
+    mode: restart
+    then:
+      - script.stop: begin_close_timeout
+      - delay: 12s
+      - script.execute: process_timeout
+
+  - id: begin_close_timeout
+    mode: restart
+    then:
+      - script.stop: begin_open_timeout
+      - delay: 14s
+      - script.execute: process_timeout
+
+cover:
+  - platform: endstop
+    name: "Garage Door"
+    id: garage_door
+    device_class: garage
+    open_action:
+      - logger.log: "Garage door is being triggered by HA"
+      - switch.turn_on: garage_opener_relay
+      - script.execute: process_press
+    open_duration: 12s
+    open_endstop: open_endstop
+    close_action:
+      - logger.log: "Garage door is being triggered by HA"
+      - switch.turn_on: garage_opener_relay
+      - script.execute: process_press
+    close_duration: 12s
+    close_endstop: closed_endstop
+    stop_action:
+      - logger.log: "Garage door is being triggered by HA"
