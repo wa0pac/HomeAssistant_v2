@@ -1,0 +1,54 @@
+esphome:
+  name: ble-repeater
+
+esp32:
+  board: nodemcu-32s
+  
+esp32_ble_tracker:
+
+# Enable logging
+logger:
+
+# Enable Home Assistant API
+api:
+
+ota:
+  - platform: esphome
+    password: !secret ota_password
+
+wifi:
+  ssid: !secret iot_wifi_ssid
+  password: !secret iot_wifi_password
+
+  # Enable fallback hotspot (captive portal) in case wifi connection fails
+  ap:
+    ssid: "Ble-Repeater Fallback Hotspot"
+    password: !secret hotspot_password
+
+captive_portal:
+
+sensor:
+  - platform: xiaomi_lywsd03mmc
+    mac_address: "A4:C1:38:71:11:F8"
+    bindkey: "eef418daf699a0c188f3bfd17e4565d9"
+    temperature:
+      name: "Master Bath Temperature"
+    humidity:
+      name: "Master Bath Humidity"
+    battery_level:
+      name: "MB Temp Sensor Battery Level"
+  - platform: ble_rssi
+    mac_address: "A4:C1:38:71:11:F8"
+    name: "Master Bath Temp Sensor BLE RSSI"
+  - platform: xiaomi_lywsd03mmc
+    mac_address: "A4:C1:38:D6:4A:82"
+    bindkey: "eef418daf699a0c188f3bfd17e4565d9"
+    temperature:
+      name: "Garage Temperature"
+    humidity:
+      name: "Garage Humidity"
+    battery_level:
+      name: "Garage Temp Sensor Battery Level"
+  - platform: ble_rssi
+    mac_address: "A4:C1:38:D6:4A:82"
+    name: "Garage Temp Sensor BLE RSSI"

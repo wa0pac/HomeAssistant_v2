@@ -1,0 +1,32 @@
+esphome:
+  name: house-humidifier
+
+esp32:
+  board: nodemcu-32s
+  
+# Enable logging
+logger:
+
+# Enable Home Assistant API
+api:
+
+ota:
+  - platform: esphome
+    password: !secret ota_password
+
+wifi:
+  ssid: !secret iot_wifi_ssid
+  password: !secret iot_wifi_password
+
+  # Enable fallback hotspot (captive portal) in case wifi connection fails
+  ap:
+    ssid: "House-Humidifier"
+    password: !secret hotspot_password
+
+captive_portal:
+
+switch:
+  - platform: gpio
+    name: "House Humidifier"
+    pin: 26
+    restore_mode: ALWAYS_OFF
