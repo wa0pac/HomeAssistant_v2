@@ -1,0 +1,109 @@
+esphome:
+  name: ble-repeater-basement
+
+esp32:
+  board: nodemcu-32s
+
+esp32_ble_tracker:
+
+# Enable logging
+logger:
+
+# Enable Home Assistant API
+api:
+
+ota:
+  - platform: esphome
+
+    password: !secret ota_password
+
+wifi:
+  ssid: !secret iot_wifi_ssid
+  password: !secret iot_wifi_password
+
+  # Enable fallback hotspot (captive portal) in case wifi connection fails
+  ap:
+    ssid: "Ble-Repeater-Basement"
+    password: !secret hotspot_password
+
+captive_portal:
+
+globals:
+  - id: tank_diameter
+    type:  'float'
+    initial_value: "945.0"
+  - id: tank_cylinder_length
+    type: 'float'
+    initial_value: "2073"
+  - id: tank_full_volume
+    type: 'float'
+    initial_value: "500"
+
+sensor:
+  - platform: xiaomi_lywsd03mmc
+    mac_address: "A4:C1:38:19:C2:66"
+    bindkey: "eef418daf699a0c188f3bfd17e4565d9"
+    temperature:
+      name: "Basement Bath Temperature"
+    humidity:
+      name: "Basement Bath Humidity"
+    battery_level:
+      name: "BBath Temp Sensor Battery Level"
+  - platform: ble_rssi
+    mac_address: "A4:C1:38:19:C2:66"
+    name: "BBath Temp Sensor BLE RSSI"
+  - platform: xiaomi_lywsd03mmc
+    mac_address: "A4:C1:38:CF:FA:EE"
+    bindkey: "eef418daf699a0c188f3bfd17e4565d9"
+    temperature:
+      name: "Basement Temperature"
+    humidity:
+      name: "Basement Humidity"
+    battery_level:
+      name: "Basement Temp Sensor Battery Level"
+  - platform: ble_rssi
+    mac_address: "A4:C1:38:CF:FA:EE"
+    name: "Basement Temp Sensor BLE RSSI"
+
+  # Custom example - user defined empty / full points
+  - platform: mopeka_pro_check
+    mac_address: EE:96:F2:CB:F8:93
+    tank_type: CUSTOM
+    custom_distance_full: 949mm
+    custom_distance_empty: 10mm
+    temperature:
+      name: "Propane Temperature"
+    distance:
+      name: "Propane Distance"
+      filters:
+        - sliding_window_moving_average:
+            window_size: 15
+            send_every: 1
+      on_value:
+        then:
+          lambda: !lambda |-
+            float radius = id(tank_diameter) * .5;
+            float ends_volume = (1.0 / 3.0) * 3.1415 * (x * x) * ( 3 * radius - x );
+            float cylinder_volume = (acos((radius - x)/radius) * (radius * radius) - (radius - x) * sqrt((2 * radius * x)-(x*x))) * id(tank_cylinder_length);
+            float tank_volume = (ends_volume + cylinder_volume) / 3785000;
+            id(propane_volume).publish_state(tank_volume);
+            id(propane_level).publish_state(tank_volume / id(tank_full_volume ) * 100);
+            return;
+    battery_level:
+        name: "Propane Battery Level"
+
+  - platform: template
+    name: "Propane Volume"
+    id: propane_volume
+    update_interval: never
+    unit_of_measurement: "gal"
+    state_class: "measurement"
+    device_class: "volume"
+    icon: "mdi:propane-tank"
+  - platform: template
+    name: "Propane Level"
+    id: propane_level
+    unit_of_measurement: "%"
+    state_class: "measurement"
+    update_interval: never
+    icon: "mdi:percent"

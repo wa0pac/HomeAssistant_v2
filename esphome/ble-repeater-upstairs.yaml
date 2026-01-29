@@ -1,0 +1,59 @@
+esphome:
+  name: ble-repeater-upstairs
+  on_boot:
+    - lambda: |-
+        id(my_ota).set_auth_password("7odtPDJ!!j*cbbjj54e8uxFxGq@ToLDD");
+
+esp32:
+  board: nodemcu-32s
+  
+esp32_ble_tracker:
+
+
+# Enable logging
+logger:
+
+# Enable Home Assistant API
+api:
+
+ota:
+  - platform: esphome
+    id: my_ota
+    password: "b6fd8d33a451e7dc3787b4a18d094b5a"
+
+wifi:
+  ssid: !secret iot_wifi_ssid
+  password: !secret iot_wifi_password
+
+  # Enable fallback hotspot (captive portal) in case wifi connection fails
+  ap:
+    ssid: "Ble-Repeater-Upstairs"
+    password: !secret hotspot_password
+
+captive_portal:
+
+sensor:
+  - platform: xiaomi_lywsd03mmc
+    mac_address: "A4:C1:38:AE:CB:1E"
+    bindkey: "eef418daf699a0c188f3bfd17e4565d9"
+    temperature:
+      name: "Guest Bath Temperature"
+    humidity:
+      name: "Guest Bath Humidity"
+    battery_level:
+      name: "GBath Temp Sensor Battery Level"
+  - platform: ble_rssi
+    mac_address: "A4:C1:38:AE:CB:1E"
+    name: "GBath Temp Sensor BLE RSSI"
+  - platform: xiaomi_lywsd03mmc
+    mac_address: "A4:C1:38:94:EC:19"
+    bindkey: "eef418daf699a0c188f3bfd17e4565d9"
+    temperature:
+      name: "Outside Temperature"
+    humidity:
+      name: "Outside Humidity"
+    battery_level:
+      name: "Outside Temp Sensor Battery Level"
+  - platform: ble_rssi
+    mac_address: "A4:C1:38:94:EC:19"
+    name: "Outside Temp Sensor BLE RSSI"

@@ -1,0 +1,279 @@
+substitutions: 
+  device_name: washer
+  friendly_name: Washer
+<<: !include .base.yaml
+
+esphome:
+  name: washer
+
+esp8266:
+  board: esp01_1m
+  # esp8266_restore_from_flash: true
+
+
+wifi:
+  ssid: !secret iot_wifi_ssid
+  password: !secret iot_wifi_password
+
+  # Enable fallback hotspot (captive portal) in case wifi connection fails
+  ap:
+    ssid: "${friendly_name} Fallback Hotspot"
+    password: !secret hotspot_password
+
+captive_portal:
+
+# Enable logging
+logger:
+  baud_rate: 0
+
+uart:
+  rx_pin: RX
+  baud_rate: 4800
+  parity: EVEN
+
+# Enable Home Assistant API
+api:
+
+ota:
+  - platform: esphome
+    password: !secret ota_password
+    id: otaId
+
+time:
+  - platform: sntp
+    id: my_time
+
+################################################################################
+
+binary_sensor:
+  - platform: gpio
+    pin:
+      number: GPIO0
+      mode: INPUT_PULLUP
+      inverted: True
+    name: "${friendly_name} Sonoff POW Button"
+    internal: true
+#    on_press:
+#      - switch.toggle: relay
+      
+  - platform: gpio
+    pin: 
+      number: GPIO4
+      mode: INPUT_PULLUP
+      inverted: True
+    name: ${friendly_name} Door
+    filters:
+      - delayed_on: 100ms
+      - delayed_off: 100ms
+
+################################################################################
+#                               Machine running                                #
+################################################################################
+  - platform: template
+    name: "RUN"
+    id: machine_running
+    filters:
+      - delayed_on: 60s # MINIMUM TIME TO AVOID FALSE POSITIVES
+      - delayed_off: 300s
+    lambda: |-
+      if (isnan(id(power).state)) {
+        return {};
+      } else if (id(power).state > 4) {
+        // Running
+        return true;
+      } else {
+        // Not running
+        return false;
+      }
+    on_press:
+      then: # at cycle start i reset all binary sensors
+        - lambda: |-  
+            {
+              id(machine_end).publish_state(false);
+              id(minimum_working_time).publish_state(false);
+              id(cycle_centrifughe).publish_state(false);
+              id(cycle_drain).publish_state(false);
+            }
+        - light.turn_on: led
+    on_release:
+      then: # at the end of cycle turn on end cycle
+        - lambda: |-  
+            {
+              id(machine_end).publish_state(true);
+            }        
+################################################################################
+#                           Minimum duration cycle                             #
+################################################################################
+  - platform: template
+    name: "${friendly_name} Minimum time"
+    internal: true # minimum working time 30m
+    id: minimum_working_time 
+    filters:
+      - delayed_on: 30min
+      - delayed_off: 180s
+    lambda: |-
+      if (isnan(id(power).state)) {
+        return {};
+      } else if (id(power).state > 4) {
+        // Running
+        return true;
+      } else {
+        // Not running (le due graffe significa che non fa nulla)
+        return {};
+      }
+################################################################################
+#                                Centrifuge                                    #
+################################################################################
+  - platform: template
+    name: "CENTRIFUGE"
+    id: cycle_centrifughe
+    filters:
+      - delayed_on: 60s
+    # >< 90W-400W for 60s (centrifuge)  010520 changed threshold to 100W
+    lambda: |-  
+      if (isnan(id(power).state)) {
+        return {};
+      } else if ( (id(power).state > 100)&&(id(power).state < 400)&&(id(minimum_working_time).state) ){
+        // Running
+        return true;
+      } else {
+        // Not running (le due graffe significa che non fa nulla)
+        return {};
+      }
+################################################################################
+#                                Water drain                                   #
+################################################################################
+  - platform: template
+    name: "DRAIN"
+    id: cycle_drain
+    filters:
+      - delayed_on: 60s
+    # >< 15W-50W for 60s (drain pump)  
+    lambda: |-  
+      if (isnan(id(power).state)) {
+        return {};
+      } else if ( (id(power).state > 15) && (id(power).state < 60) && (id(cycle_centrifughe).state) ){
+        // Running
+        return true;
+      } else {
+        // Not running (le due graffe significa che non fa nulla)
+        return {};
+      }                             
+################################################################################
+#                                 Machine end                                  #
+################################################################################
+  - platform: template
+    name: "END"
+    id: machine_end
+    on_press:
+      - light.turn_off: led     
+      
+################################################################################
+
+switch:
+  - platform: gpio
+    id: relay
+    pin: GPIO12
+    name: "${friendly_name} POW Relay"
+    restore_mode: ALWAYS_ON
+
+output:
+  - platform: esp8266_pwm
+    id: pow_blue_led
+    pin:
+      number: GPIO13
+      inverted: True
+
+light:
+  - platform: monochromatic
+    name: "${friendly_name} POW Blue LED"
+    internal: true
+    output: pow_blue_led
+    id: led
+
+sensor:
+  - platform: wifi_signal
+    name: "${friendly_name} WiFi Signal"
+    update_interval: 60s
+  - platform: uptime
+    name: "${friendly_name} POW Uptime"
+  - platform: cse7766
+    current:
+      name: "${friendly_name} POW Current"
+      id: curr
+      internal: true
+      filters:
+        - throttle_average: 30s
+    voltage:
+      name: "${friendly_name} POW Voltage"
+      id: volt
+      internal: true
+      filters:
+        - throttle_average: 30s
+    power:
+      name: "${friendly_name} POW Power"
+      id: power
+      internal: true
+      filters:
+        - throttle_average: 30s
+      # on_value_range:
+      #   - above: 4.0
+      #     then:
+      #       - light.turn_on: led
+      #   - below: 3.0
+      #     then:
+      #       - delay: 60s
+      #       - light.turn_off: led
+    
+  - platform: total_daily_energy ############################
+    name: "${friendly_name} POW R2 Total Daily Energy"
+    power_id: power 
+    filters:
+        # Multiplication factor from W to kW is 0.001
+      - multiply: 0.001
+    unit_of_measurement: kWh
+    accuracy_decimals: 1      
+
+################################################################################
+#                         Slow sensors for Home assistant                      #
+################################################################################
+
+  - platform: template #########################
+    name: "${friendly_name} Pow Current Slow"
+    lambda: |-
+      if (id(curr).state) {
+        return (id(curr).state);
+      } else {
+        return 0;
+      }
+    unit_of_measurement: A
+    icon: "mdi:alpha-a-circle"
+    update_interval: 90s
+  
+  - platform: template #########################
+    name: "${friendly_name} Pow Voltage Slow"
+    lambda: |-
+      if (id(volt).state) {
+        return (id(volt).state);
+      } else {
+        return 0;
+      }
+    unit_of_measurement: V
+    icon: "mdi:alpha-v-circle"
+    update_interval: 90s
+  
+  - platform: template #########################
+    name: "${friendly_name} Pow Power Slow"
+    lambda: |-
+      if (id(power).state) {
+        return (id(power).state);
+      } else {
+        return 0;
+      }
+    unit_of_measurement: W 
+    icon: "mdi:alpha-w-circle"
+    update_interval: 90s
+  
+text_sensor:
+  - platform: version
+    name: "${friendly_name} POW ESPHome Version"
