@@ -2,6 +2,11 @@
 # Loads default set of integrations. Do not remove.
 default_config:
 
+logger:
+  default: info
+  logs:
+    custom_components.multiscrape: debug
+    
 # Load frontend themes from the themes folder
 frontend:
   themes: !include_dir_merge_named themes
@@ -9,45 +14,15 @@ frontend:
 automation: !include automations.yaml
 script: !include scripts.yaml
 scene: !include scenes.yaml
+command_line: !include command_line.yaml 
+template: !include template.yaml
+rest: !include rest.yaml
+
 
 recorder:
   db_url: !secret mariadb_url
 
-influxdb:
-  host: a0d7b954-influxdb
-  port: 8086
-  database: homeassistant
-  username: homeassistant
-  password: !secret influxdb_password
-  max_retries: 3
-  default_measurement: state
+http:
+  cors_allowed_origins:
+    - https://house-of-abbey.github.io
 
-template:
-  - sensor: 
-      - name: "Humidity Target"
-        unique_id: "humidity_target"
-        icon: mdi:water-percent
-        state: >
-          {% if states('sensor.gw2000b_outdoor_temperature') != 'unknown' %}
-          {% set outsideTemp = states('sensor.gw2000b_outdoor_temperature') | float %}
-          {% else %}
-          {% set outsideTemp = state_attr('weather.kotm_daynight', 'temperature') | float %}
-          {% endif %}
-          {% set humidityTarget = ((outsideTemp/2) + 25) | round(0) %}
-          {% if humidityTarget > 50 -%}
-            50
-          {%- elif humidityTarget < 15 -%}
-            15
-          {%- else -%}
-            {{ humidityTarget }}
-          {%- endif %}
-  - sensor:
-    - name: barometric_pressure_trend
-      state: >
-        {% if is_state('binary_sensor.relative_pressure_falling', 'on') %}
-          falling
-        {% elif is_state('binary_sensor.relative_pressure_rising', 'on') %}
-          rising
-        {% else %}
-          steady
-        {% endif %}

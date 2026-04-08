@@ -1,0 +1,63 @@
+
+- sensor: 
+    - name: "Humidity Target"
+      unique_id: "humidity_target"
+      icon: mdi:water-percent
+      state: >
+        {% set outsideTemp = states('sensor.gw2000b_outdoor_temperature') | float %}
+        {% set humidityTarget = ((outsideTemp/2) + 25) | round(0) %}
+        {% if humidityTarget > 50 -%}
+          50
+        {%- elif humidityTarget < 15 -%}
+          15
+        {%- else -%}
+          {{ humidityTarget }}
+        {%- endif %}
+- sensor:
+  - name: barometric_pressure_trend
+    unique_id: barometric_preasure_trend
+    state: >
+      {% if is_state('binary_sensor.relative_pressure_falling', 'on') %}
+        falling
+      {% elif is_state('binary_sensor.relative_pressure_rising', 'on') %}
+        rising
+      {% else %}
+        steady
+      {% endif %}
+
+- trigger:
+  - platform: state
+    entity_id: sensor.birdnet_species_summary
+    not_to: 
+      - unknown
+      - unavailable
+  sensor:
+    - name: BirdNET Species Summary Persisted Data
+      unique_id: birdnet_species_summary_persisted_data
+      state: '{{ trigger.to_state.state }}'
+      attributes:
+        species_list: '{{ trigger.to_state.attributes.species_list }}'
+      device_class: timestamp
+
+# version 1.0
+- trigger:
+    - platform: mqtt
+      topic: birdnet
+    # Reset at midnight to align with "a new daily summary"
+    - platform: time_pattern
+      hours: 0
+      minutes: 0
+      id: reset
+  sensor:
+    - name: BirdNET
+      unique_id: birdnet
+      state: >-
+        {% if trigger.id == 'reset' %}
+          unavailable
+        {% elif trigger.payload_json is defined %}
+          {{ today_at(trigger.payload_json.Time) }}
+        {% else %}
+          unknown
+        {% endif %}
+      icon: mdi:bird
+

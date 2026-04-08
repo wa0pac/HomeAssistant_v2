@@ -1,0 +1,13 @@
+- resource: "https://api.aprs.fi/api/get"
+  scan_interval: 600
+  method: GET
+  params:
+    apikey: !secret aprs_fi_apikey
+    name: "WA0PAC-10"
+    what: "loc"
+  sensor:
+    - name: "WA0PAC-10 aprs.fi Last Received"
+      json_attributes_path: "$.entries.[0]"
+      json_attributes:
+        - lasttime
+      value_template: "{{ as_datetime( value_json['entries'][0]['lasttime'] | int(0)) | as_local  }}"

@@ -1,0 +1,16 @@
+{
+  "$schema": "https://raw.githubusercontent.com/house-of-abbey/GarminHomeAssistant/main/config.schema.json",
+  "title": "Home",
+  "items": [
+    {
+      "entity": "switch.garage_overhead_door",
+      "name": "Garage Door",
+      "type": "toggle"
+    },
+    {
+      "entity": "switch.christmas_village_14",
+      "name": "Christmas Village",
+      "type": "toggle"
+    }
+  ]
+}

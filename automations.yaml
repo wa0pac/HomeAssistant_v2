@@ -1,1 +1,297 @@
-[]
+- id: '1770037632662'
+  alias: Angie Leaving Work
+  description: ''
+  triggers:
+  - trigger: state
+    entity_id:
+    - person.angella
+    from:
+    - Select PT
+  conditions: []
+  actions:
+  - action: notify.mobile_app_pixel_6
+    metadata: {}
+    data:
+      message: Angie leaving Work
+      data:
+        ttl: 0
+        priority: high
+        channel: critical
+  mode: single
+- id: '1770412096390'
+  alias: Toggle Garage Door with Tag
+  description: ''
+  triggers:
+  - trigger: tag
+    tag_id: 1dc88146-997f-4470-bc11-a25320e29c79
+  conditions: []
+  actions:
+  - action: cover.toggle
+    metadata: {}
+    data: {}
+    target:
+      device_id: 645c172170ab4f972b0cfd903210501d
+  mode: single
+- id: '1771277137012'
+  alias: Air Purifier Pet Mode High
+  description: ''
+  triggers:
+  - trigger: time
+    at: 03:00:00
+  conditions: []
+  actions:
+  - action: fan.turn_on
+    metadata: {}
+    target:
+      device_id: 68466f8097efbb1ffb391cc1acbaacf8
+    data:
+      percentage: 100
+  - delay:
+      hours: 0
+      minutes: 15
+      seconds: 0
+      milliseconds: 0
+  - action: fan.turn_on
+    metadata: {}
+    target:
+      device_id: 68466f8097efbb1ffb391cc1acbaacf8
+    data:
+      preset_mode: auto
+  mode: single
+- id: '1771278134797'
+  alias: Air Purifier Notify Order Filter
+  description: ''
+  triggers:
+  - type: value
+    device_id: 68466f8097efbb1ffb391cc1acbaacf8
+    entity_id: 527295c579b9e3502d45c1538e2fecae
+    domain: sensor
+    trigger: device
+    below: 11
+  conditions: []
+  actions:
+  - action: notify.mobile_app_pixel_6
+    metadata: {}
+    data:
+      message: Order Filter for Air Purifier
+      data:
+        channel: normal
+  mode: single
+- id: '1771337261714'
+  alias: Task Change HVAC Filter
+  description: ''
+  use_blueprint:
+    path: nwithan8/track_and_remind_task.yaml
+    input:
+      task_name: Replace HVAC Filter
+      task_interval: 90
+      nfc_tag: 194c0abb-8323-4d35-a244-ced96d84fc84
+      date_tracker: input_datetime.task_hvac_filter_replace
+      status_check_time: 08:50:00
+      due_action:
+      - action: notify.mobile_app_pixel_6
+        metadata: {}
+        data:
+          data:
+            channel: normal
+          title: Change HVAC Filter
+          message: HVAC filter needs to be changed.
+      overdue_action:
+      - action: notify.mobile_app_pixel_6
+        metadata: {}
+        data:
+          message: HVAC filter change is overdue!
+          title: Change HVAC Filter
+          data:
+            channel: normal
+- id: '1771344862936'
+  alias: task_clean_washing_machine
+  description: ''
+  use_blueprint:
+    path: nwithan8/track_and_remind_task.yaml
+    input:
+      task_name: task_clean_washing_machine
+      task_interval: 30
+      nfc_tag: 1fb32959-5861-4136-9029-37b710acd646
+      date_tracker: input_datetime.task_washer_clean_filter
+      status_check_time: '10:20:00'
+      due_action:
+      - action: notify.mobile_app_pixel_6
+        metadata: {}
+        data:
+          message: Run washing machine cleaning cycle
+          title: Clean Washing Machine
+          data:
+            channel: normal
+      overdue_action:
+      - action: notify.mobile_app_pixel_6
+        metadata: {}
+        data:
+          message: Run washing machine cleaning cycle (overdue)
+          title: Clean Washing Machine
+          data:
+            channel: normal
+      on_completion_action:
+      - sequence:
+        - delay:
+            hours: 1
+            minutes: 45
+            seconds: 0
+            milliseconds: 0
+        - action: notify.mobile_app_pixel_6
+          metadata: {}
+          data:
+            title: Washing Machine Cleaning Complete
+            message: Washing machine cleaning complete. Open washer door.
+            data:
+              channel: normal
+- id: '1772656306638'
+  alias: BirdNet System Monitoring
+  description: ''
+  triggers:
+  - trigger: state
+    entity_id:
+    - device_tracker.raspberrypi
+    from:
+    - home
+    for:
+      hours: 0
+      minutes: 10
+      seconds: 0
+  conditions: []
+  actions:
+  - action: notify.mobile_app_pixel_6
+    metadata: {}
+    data:
+      title: BirdNet System Notification
+      message: The BirdNet Server is not connected
+      data:
+        channel: normal
+  mode: single
+- id: '1772938777415'
+  alias: Trigger BirdNET-Go API fetch
+  description: ''
+  triggers:
+  - trigger: state
+    entity_id:
+    - sensor.birdnet
+  conditions: []
+  actions:
+  - parallel:
+    - action: homeassistant.update_entity
+      metadata: {}
+      data:
+        entity_id:
+        - sensor.birdnet_daily_summary
+    - action: homeassistant.update_entity
+      metadata: {}
+      data:
+        entity_id:
+        - sensor.birdnet_species_summary
+  mode: queued
+  max: 5
+- id: '1773152830391'
+  alias: Bird detection
+  description: ''
+  triggers:
+  - trigger: state
+    entity_id:
+    - sensor.birdnet_pdp_audio_device_usb_audio_last_species
+    to:
+    - American Woodcock
+  - trigger: state
+    entity_id:
+    - sensor.birdnet_pdp_audio_device_usb_audio_last_species
+    to:
+    - Belted Kingfisher
+  conditions:
+  - condition: state
+    entity_id: timer.bird_notification_cooldown
+    state:
+    - idle
+    - unavailable
+    - unknown
+  actions:
+  - parallel:
+    - action: timer.start
+      metadata: {}
+      target:
+        entity_id: timer.bird_notification_cooldown
+      data:
+        duration:
+          hours: 0
+          minutes: 15
+          seconds: 0
+    - action: notify.mobile_app_pixel_6
+      metadata: {}
+      data:
+        message: '{{ states ( ''sensor.birdnet_pdp_audio_device_usb_audio_last_species'')
+          }} was just heard by BirdNet!'
+        title: Species Notification
+        data:
+          channel: normal
+  mode: single
+- id: '1773750350744'
+  alias: APRS IGate Watchdog
+  description: ''
+  triggers:
+  - trigger: state
+    entity_id:
+    - sensor.wa0pac_10_aprs_fi_last_received
+    id: last_received_changed
+  - trigger: state
+    entity_id:
+    - timer.aprs_igate_watchdog
+    id: watchdog_timer_idle
+    to:
+    - idle
+    from:
+    - active
+  conditions: []
+  actions:
+  - choose:
+    - conditions:
+      - condition: trigger
+        id:
+        - last_received_changed
+      sequence:
+      - action: timer.start
+        metadata: {}
+        target:
+          entity_id: timer.aprs_igate_watchdog
+        data:
+          duration:
+            hours: 0
+            minutes: 32
+            seconds: 0
+    - conditions:
+      - condition: trigger
+        id:
+        - watchdog_timer_idle
+      sequence:
+      - action: notify.mobile_app_pixel_6
+        metadata: {}
+        data:
+          message: APRS may not be working
+          title: APRS Watchdog
+          data:
+            channel: normal
+  mode: single
+- id: '1774009016378'
+  alias: Outdoor Temp above indoor - Close Window
+  description: ''
+  triggers:
+  - trigger: numeric_state
+    entity_id:
+    - climate.thermostat_12
+    attribute: current_temperature
+    below: sensor.gw2000b_outdoor_temperature
+  conditions: []
+  actions:
+  - action: notify.mobile_app_pixel_6
+    metadata: {}
+    data:
+      message: Outdoor Temperature has risen above Indoor Temperature. Close windows.
+      data:
+        channel: normal
+  mode: single
